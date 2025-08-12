@@ -72,6 +72,84 @@ export default function GameBoard() {
     setBoard(newBoard);
   }, []);
 
+  // Движение
+  const moveLeft = () => {
+    console.log('left');
+    let boardChanged = false;
+    const newBoard = board.map((row) => [...row]);
+
+    newBoard.forEach((row, rowIndex) => {
+      // Сдвиг
+      const numbersOnly = row.filter((value) => value !== 0);
+      const zeroes = Array(row.length - numbersOnly.length).fill(0);
+      const newRow = numbersOnly.concat(zeroes);
+
+      newBoard[rowIndex] = newRow;
+
+      // Слияние
+      for (let i = 0; i < newRow.length - 1; i++) {
+        if (newRow[i] !== 0 && newRow[i] === newRow[i + 1]) {
+          newRow[i] *= 2;
+          newRow[i + 1] = 0;
+        }
+      }
+
+      // Финальный сдвиг
+      const afterMergeRow = newRow;
+      const finalNumbers = afterMergeRow.filter((value) => value !== 0);
+      const finalZeroes = Array(
+        afterMergeRow.length - finalNumbers.length,
+      ).fill(0);
+      const finalRow = finalNumbers.concat(finalZeroes);
+
+      newBoard[rowIndex] = finalRow;
+
+      // Сравниваем строки через JSON, чтобы корректно определить изменения
+      if (JSON.stringify(finalRow) !== JSON.stringify(board[rowIndex])) {
+        boardChanged = true;
+      }
+    });
+
+    // Обновляем доску и добавляем фишку, только если были изменения
+    if (boardChanged) {
+      setBoard(newBoard);
+      addRandomTile();
+    }
+  };
+  const moveRight = () => {
+    console.log('right');
+  };
+  const moveUp = () => {
+    console.log('up');
+  };
+  const moveDown = () => {
+    console.log('down');
+  };
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      switch (e.code) {
+        case 'ArrowLeft':
+          moveLeft();
+          break;
+        case 'ArrowRight':
+          moveRight();
+          break;
+        case 'ArrowUp':
+          moveUp();
+          break;
+        case 'ArrowDown':
+          moveDown();
+          break;
+        default:
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [board]);
+
   return (
     <div className='rounded-lg bg-slate-400 p-2 shadow-2xl dark:bg-slate-700'>
       <div
