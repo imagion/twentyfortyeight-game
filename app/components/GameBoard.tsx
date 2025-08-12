@@ -35,46 +35,21 @@ export default function GameBoard() {
   };
 
   // Добавляет одну фишку в случайную пустую ячейку
-  const addRandomTile = () => {
+  const addRandomTile = (boardToAddOn: number[][]): number[][] => {
     const emptyCells = findEmptyCells();
-    if (emptyCells.length === 0) return; // Нет места
+    if (emptyCells.length === 0) return boardToAddOn; // Нет места
 
     const randomCell =
       emptyCells[Math.floor(Math.random() * emptyCells.length)];
     const newValue = Math.random() < 0.9 ? 2 : 4;
 
-    // Важно: создаем копию доски для изменения
-    const newBoard = board.map((row) => [...row]);
+    const newBoard = boardToAddOn.map((row) => [...row]);
     newBoard[randomCell.row][randomCell.col] = newValue;
-    setBoard(newBoard);
+    return newBoard;
   };
-
-  // Инициализация игры
-  useEffect(() => {
-    const newBoard = createEmptyBoard(rows, cols);
-    const emptyCells: Cell[] = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        emptyCells.push({ row: r, col: c });
-      }
-    }
-
-    // Первая фишка
-    let randomIndex = Math.floor(Math.random() * emptyCells.length);
-    let randomCell = emptyCells.splice(randomIndex, 1)[0];
-    newBoard[randomCell.row][randomCell.col] = 2;
-
-    // Вторая фишка
-    randomIndex = Math.floor(Math.random() * emptyCells.length);
-    randomCell = emptyCells.splice(randomIndex, 1)[0];
-    newBoard[randomCell.row][randomCell.col] = 2;
-
-    setBoard(newBoard);
-  }, []);
 
   // Движение
   const moveLeft = () => {
-    console.log('left');
     let boardChanged = false;
     const newBoard = board.map((row) => [...row]);
 
@@ -112,8 +87,9 @@ export default function GameBoard() {
 
     // Обновляем доску и добавляем фишку, только если были изменения
     if (boardChanged) {
-      setBoard(newBoard);
-      addRandomTile();
+      const boardAfterMove = newBoard;
+      const finalBoard = addRandomTile(boardAfterMove);
+      setBoard(finalBoard);
     }
   };
   const moveRight = () => {
@@ -149,6 +125,24 @@ export default function GameBoard() {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [board]);
+
+  // Инициализация игры
+  useEffect(() => {
+    const newBoard = createEmptyBoard(rows, cols);
+    const emptyCells = findEmptyCells();
+
+    // Первая фишка
+    let randomIndex = Math.floor(Math.random() * emptyCells.length);
+    let randomCell = emptyCells.splice(randomIndex, 1)[0];
+    newBoard[randomCell.row][randomCell.col] = 2;
+
+    // Вторая фишка
+    randomIndex = Math.floor(Math.random() * emptyCells.length);
+    randomCell = emptyCells.splice(randomIndex, 1)[0];
+    newBoard[randomCell.row][randomCell.col] = 2;
+
+    setBoard(newBoard);
+  }, []);
 
   return (
     <div className='rounded-lg bg-slate-400 p-2 shadow-2xl dark:bg-slate-700'>
