@@ -42,209 +42,82 @@ export default function GameBoard() {
     return newBoard;
   };
 
-  // Движение
-  const moveLeft = () => {
-    let boardChanged = false;
-    const newBoard = board.map((row) => [...row]);
+  // Обработка одной линии
+  const processLine = (line: number[]): number[] => {
+    // Сдвиг влево
+    const numbersOnly = line.filter((value) => value !== 0);
+    const zeroes = Array(line.length - numbersOnly.length).fill(0);
+    const shiftedLine = numbersOnly.concat(zeroes);
 
-    newBoard.forEach((row, rowIndex) => {
-      // Сдвиг
-      const numbersOnly = row.filter((value) => value !== 0);
-      const zeroes = Array(row.length - numbersOnly.length).fill(0);
-      const newRow = numbersOnly.concat(zeroes);
-
-      newBoard[rowIndex] = newRow;
-
-      // Слияние
-      for (let i = 0; i < newRow.length - 1; i++) {
-        if (newRow[i] !== 0 && newRow[i] === newRow[i + 1]) {
-          newRow[i] *= 2;
-          newRow[i + 1] = 0;
-        }
+    // Слияние
+    for (let i = 0; i < shiftedLine.length - 1; i++) {
+      if (shiftedLine[i] !== 0 && shiftedLine[i] === shiftedLine[i + 1]) {
+        shiftedLine[i] *= 2;
+        shiftedLine[i + 1] = 0;
       }
-
-      // Финальный сдвиг
-      const afterMergeRow = newRow;
-      const finalNumbers = afterMergeRow.filter((value) => value !== 0);
-      const finalZeroes = Array(
-        afterMergeRow.length - finalNumbers.length,
-      ).fill(0);
-      const finalRow = finalNumbers.concat(finalZeroes);
-
-      newBoard[rowIndex] = finalRow;
-
-      // Сравниваем строки через JSON, чтобы корректно определить изменения
-      if (JSON.stringify(finalRow) !== JSON.stringify(board[rowIndex])) {
-        boardChanged = true;
-      }
-    });
-
-    // Обновляем доску и добавляем фишку, только если были изменения
-    if (boardChanged) {
-      const boardAfterMove = newBoard;
-      const finalBoard = addRandomTile(boardAfterMove);
-      setBoard(finalBoard);
     }
+
+    // Финальный сдвиг влево
+    const finalNumbers = shiftedLine.filter((value) => value !== 0);
+    const finalZeroes = Array(shiftedLine.length - finalNumbers.length).fill(0);
+
+    return finalNumbers.concat(finalZeroes);
   };
-  const moveRight = () => {
-    let boardChanged = false;
-    const newBoard = board.map((row) => [...row]);
 
-    newBoard.forEach((row, rowIndex) => {
-      // Сдвиг
-      const numbersOnly = row.filter((value) => value !== 0);
-      const zeroes = Array(row.length - numbersOnly.length).fill(0);
-      const newRow = zeroes.concat(numbersOnly);
-
-      newBoard[rowIndex] = newRow;
-
-      // Слияние
-      for (let i = newRow.length - 1; i > 0; i--) {
-        if (newRow[i] !== 0 && newRow[i] === newRow[i + 1]) {
-          newRow[i] *= 2;
-          newRow[i + 1] = 0;
-        }
-      }
-
-      // Финальный сдвиг
-      const afterMergeRow = newRow;
-      const finalNumbers = afterMergeRow.filter((value) => value !== 0);
-      const finalZeroes = Array(
-        afterMergeRow.length - finalNumbers.length,
-      ).fill(0);
-      const finalRow = finalZeroes.concat(finalNumbers);
-
-      newBoard[rowIndex] = finalRow;
-
-      // Сравниваем строки через JSON, чтобы корректно определить изменения
-      if (JSON.stringify(finalRow) !== JSON.stringify(board[rowIndex])) {
-        boardChanged = true;
-      }
-    });
-
-    // Обновляем доску и добавляем фишку, только если были изменения
-    if (boardChanged) {
-      const boardAfterMove = newBoard;
-      const finalBoard = addRandomTile(boardAfterMove);
-      setBoard(finalBoard);
-    }
-  };
-  const moveUp = () => {
-    let boardChanged = false;
-    const newBoard = board.map((row) => [...row]);
-
-    // Транспонируем доску
-    const transposedBoard = createEmptyBoard(cols, rows); // Внимание: rows и cols поменялись местами
+  // Транспонирование
+  const transpose = (boardToTranspose: number[][]): number[][] => {
+    const transposed = createEmptyBoard(cols, rows);
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        transposedBoard[c][r] = newBoard[r][c];
+        transposed[c][r] = boardToTranspose[r][c];
       }
     }
+    return transposed;
+  };
 
-    transposedBoard.forEach((row, rowIndex) => {
-      // Сдвиг
-      const numbersOnly = row.filter((value) => value !== 0);
-      const zeroes = Array(row.length - numbersOnly.length).fill(0);
-      const newRow = numbersOnly.concat(zeroes);
+  // Универсальная функция, которая выполняет ход и обновляет состояние
+  const operate = (getNewBoard: () => number[][]) => {
+    const newBoard = getNewBoard();
+    const boardChanged = JSON.stringify(board) !== JSON.stringify(newBoard);
 
-      transposedBoard[rowIndex] = newRow;
-
-      // Слияние
-      for (let i = 0; i < newRow.length - 1; i++) {
-        if (newRow[i] !== 0 && newRow[i] === newRow[i + 1]) {
-          newRow[i] *= 2;
-          newRow[i + 1] = 0;
-        }
-      }
-
-      // Финальный сдвиг
-      const afterMergeRow = newRow;
-      const finalNumbers = afterMergeRow.filter((value) => value !== 0);
-      const finalZeroes = Array(
-        afterMergeRow.length - finalNumbers.length,
-      ).fill(0);
-      const finalRow = finalNumbers.concat(finalZeroes);
-
-      transposedBoard[rowIndex] = finalRow;
-
-      // Транспонируем доску обратно
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          newBoard[r][c] = transposedBoard[c][r];
-        }
-      }
-
-      // Сравниваем строки через JSON, чтобы корректно определить изменения
-      if (JSON.stringify(finalRow) !== JSON.stringify(board[rowIndex])) {
-        boardChanged = true;
-      }
-    });
-
-    // Обновляем доску и добавляем фишку, только если были изменения
     if (boardChanged) {
-      const boardAfterMove = newBoard;
-      const finalBoard = addRandomTile(boardAfterMove);
+      const finalBoard = addRandomTile(newBoard);
       setBoard(finalBoard);
     }
+  };
+
+  // Движение
+  const moveLeft = () => {
+    operate(() => board.map(processLine));
+  };
+
+  const moveRight = () => {
+    operate(() => {
+      return board.map((row) => {
+        // Движение вправо = развернуть -> сдвинуть влево -> развернуть обратно
+        return processLine([...row].reverse()).reverse();
+      });
+    });
+  };
+
+  const moveUp = () => {
+    operate(() => {
+      // Движение вверх = транспонировать -> сдвинуть влево -> транспонировать обратно
+      const transposed = transpose(board);
+      const moved = transposed.map(processLine);
+      return transpose(moved);
+    });
   };
 
   const moveDown = () => {
-    let boardChanged = false;
-    const newBoard = board.map((row) => [...row]);
-
-    // Транспонируем доску
-    const transposedBoard = createEmptyBoard(cols, rows); // Внимание: rows и cols поменялись местами
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        transposedBoard[c][r] = newBoard[r][c];
-      }
-    }
-
-    transposedBoard.forEach((row, rowIndex) => {
-      // Сдвиг
-      const numbersOnly = row.filter((value) => value !== 0);
-      const zeroes = Array(row.length - numbersOnly.length).fill(0);
-      const newRow = zeroes.concat(numbersOnly);
-
-      transposedBoard[rowIndex] = newRow;
-
-      // Слияние
-      for (let i = newRow.length - 1; i > 0; i--) {
-        if (newRow[i] !== 0 && newRow[i] === newRow[i + 1]) {
-          newRow[i] *= 2;
-          newRow[i + 1] = 0;
-        }
-      }
-
-      // Финальный сдвиг
-      const afterMergeRow = newRow;
-      const finalNumbers = afterMergeRow.filter((value) => value !== 0);
-      const finalZeroes = Array(
-        afterMergeRow.length - finalNumbers.length,
-      ).fill(0);
-      const finalRow = finalZeroes.concat(finalNumbers);
-
-      transposedBoard[rowIndex] = finalRow;
-
-      // Транспонируем доску обратно
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          newBoard[r][c] = transposedBoard[c][r];
-        }
-      }
-
-      // Сравниваем строки через JSON, чтобы корректно определить изменения
-      if (JSON.stringify(finalRow) !== JSON.stringify(board[rowIndex])) {
-        boardChanged = true;
-      }
+    operate(() => {
+      // Движение вниз = транспонировать -> сдвинуть вправо -> транспонировать обратно
+      const transposed = transpose(board);
+      const moved = transposed.map((row) =>
+        processLine([...row].reverse()).reverse(),
+      );
+      return transpose(moved);
     });
-
-    // Обновляем доску и добавляем фишку, только если были изменения
-    if (boardChanged) {
-      const boardAfterMove = newBoard;
-      const finalBoard = addRandomTile(boardAfterMove);
-      setBoard(finalBoard);
-    }
   };
 
   useEffect(() => {
