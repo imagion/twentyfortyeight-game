@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 type Cell = {
   row: number;
@@ -9,6 +10,22 @@ type Cell = {
 
 const ROWS = 4;
 const COLS = 4;
+
+// Карта цветов для плиток. Легко расширять.
+const TILE_COLORS: { [key: number]: string } = {
+  2: 'bg-gray-100 text-gray-800',
+  4: 'bg-amber-100 text-amber-900',
+  8: 'bg-orange-300 text-white',
+  16: 'bg-orange-400 text-white',
+  32: 'bg-red-400 text-white',
+  64: 'bg-red-500 text-white',
+  128: 'bg-yellow-400 text-white',
+  256: 'bg-yellow-500 text-white',
+  512: 'bg-yellow-600 text-white',
+  1024: 'bg-purple-500 text-white',
+  2048: 'bg-purple-700 text-white',
+};
+const DEFAULT_TILE_COLOR = 'bg-gray-200 dark:bg-gray-900';
 
 export default function GameBoard() {
   const [board, setBoard] = useState<number[][]>([]);
@@ -205,45 +222,46 @@ export default function GameBoard() {
   }, [initializeGame]);
 
   return (
-    <div className='flex flex-col items-center gap-4'>
-      <div className='flex flex-col items-center gap-4 rounded-lg bg-slate-400 p-2 shadow-2xl dark:bg-slate-700'>
-        <div className='w-full rounded-md bg-gray-100 p-2 text-center dark:bg-gray-900'>
-          <p className='text-lg font-medium text-gray-500 dark:text-gray-400'>
-            Счет:{' '}
-            <span className='font-mono text-xl font-bold text-green-500'>
-              {score}
-            </span>
+    <div className='flex w-full max-w-md flex-col items-center gap-4'>
+      <div className='flex w-full items-center justify-between gap-4'>
+        <div className='rounded-md bg-neutral-200 p-3 text-center dark:bg-neutral-800'>
+          <p className='text-sm font-medium text-gray-500 dark:text-gray-400'>
+            СЧЕТ
           </p>
+          <span className='text-2xl font-bold text-black dark:text-white'>
+            {score}
+          </span>
         </div>
         <button
           onClick={initializeGame}
-          className='focus:ring-opacity-75 rounded-md bg-orange-500 px-4 py-3 text-white shadow-md hover:bg-orange-600 focus:ring-2 focus:ring-orange-400 focus:outline-none'>
+          className='focus:ring-opacity-75 rounded-md bg-orange-500 px-4 py-3 font-bold text-white shadow-md transition-colors hover:bg-orange-600 focus:ring-2 focus:ring-orange-400 focus:outline-none'>
           Новая игра
         </button>
       </div>
 
       <div className='relative rounded-lg bg-slate-400 p-2 shadow-2xl dark:bg-slate-700'>
         {isGameOver && (
-          <div className='bg-opacity-50 absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-black'>
+          <div className='absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-black/50'>
             <p className='text-5xl font-bold text-white'>Игра окончена</p>
           </div>
         )}
         <div
           className='grid gap-1'
           style={{
-            gridTemplateRows: `repeat(${ROWS}, minmax(0, 1fr))`,
-            gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
-            width: '90vw',
-            height: '90vw',
-            maxWidth: '448px',
-            maxHeight: '448px',
+            gridTemplateRows: `repeat(${ROWS}, 1fr)`,
+            gridTemplateColumns: `repeat(${COLS}, 1fr)`,
+            width: 'clamp(280px, 90vw, 448px)',
+            height: 'clamp(280px, 90vw, 448px)',
           }}>
           {board.map((row, r) =>
             row.map((value, c) => (
               <div
                 key={`${r}-${c}`}
-                className='flex items-center justify-center rounded-md bg-gray-100 text-5xl font-bold text-gray-600 dark:bg-gray-900 dark:text-gray-300'>
-                {value === 0 ? '' : value}
+                className={cn(
+                  'flex items-center justify-center rounded-md text-3xl font-bold transition-colors select-none sm:text-5xl',
+                  TILE_COLORS[value] || DEFAULT_TILE_COLOR,
+                )}>
+                {value !== 0 && value}
               </div>
             )),
           )}
