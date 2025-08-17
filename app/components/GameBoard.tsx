@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 
-type Cell = {
-  row: number;
-  col: number;
+type Tile = {
+  id: number;
+  value: number;
 };
 
 const ROWS = 4;
@@ -26,40 +27,48 @@ const TILE_COLORS: { [key: number]: string } = {
   1024: 'bg-purple-500 text-white',
   2048: 'bg-purple-700 text-white',
 };
-const DEFAULT_TILE_COLOR = 'bg-gray-200 dark:bg-gray-900';
+const EMPTY_TILE_COLOR = 'bg-gray-200 dark:bg-gray-900';
 
 export default function GameBoard() {
-  const [board, setBoard] = useState<number[][]>([]);
+  const [board, setBoard] = useState<Tile[][]>([]);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
+  const [tileIdCounter, setTileIdCounter] = useState(1);
 
   // Создает пустую доску
-  const createEmptyBoard = useCallback((): number[][] => {
-    return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  const createEmptyBoard = useCallback((): Tile[][] => {
+    return Array.from({ length: ROWS }, () =>
+      Array(COLS).fill({ id: 0, value: 0 }),
+    );
   }, []);
 
   // Добавляет одну фишку в случайную пустую ячейку
-  const addRandomTile = useCallback((boardToAddOn: number[][]): number[][] => {
-    const emptyCells: Cell[] = [];
-    boardToAddOn.forEach((row, r) => {
-      row.forEach((cell, c) => {
-        if (cell === 0) {
-          emptyCells.push({ row: r, col: c });
-        }
-      });
-    });
+  const addRandomTile = useCallback(
+    (boardToAddOn: Tile[][]): Tile[][] => {
+      const emptyCells: { row: number; col: number }[] = [];
+      boardToAddOn.forEach((row, r) =>
+        row.forEach((tile, c) => {
+          if (tile.value === 0) emptyCells.push({ row: r, col: c });
+        }),
+      );
 
-    if (emptyCells.length === 0) return boardToAddOn;
+      if (emptyCells.length === 0) return boardToAddOn;
 
-    const randomCell =
-      emptyCells[Math.floor(Math.random() * emptyCells.length)];
-    const newValue = Math.random() < 0.9 ? 2 : 4;
+      const randomCell =
+        emptyCells[Math.floor(Math.random() * emptyCells.length)];
+      const newValue = Math.random() < 0.9 ? 2 : 4;
+      const newBoard = boardToAddOn.map((row) => [...row]);
 
-    const newBoard = boardToAddOn.map((row) => [...row]);
-    newBoard[randomCell.row][randomCell.col] = newValue;
-    return newBoard;
-  }, []);
+      setTileIdCounter((prev) => prev + 1);
+      newBoard[randomCell.row][randomCell.col] = {
+        id: tileIdCounter,
+        value: newValue,
+      };
+      return newBoard;
+    },
+    [tileIdCounter],
+  );
 
   // Инициализация или перезапуск игры
   const initializeGame = useCallback(() => {
@@ -72,23 +81,27 @@ export default function GameBoard() {
   }, [createEmptyBoard, addRandomTile]);
 
   // Проверяет, окончена ли игра
-  const checkGameOver = useCallback((boardToCheck: number[][]): boolean => {
+  const checkGameOver = useCallback((boardToCheck: Tile[][]): boolean => {
     // Есть ли пустые ячейки?
-    if (boardToCheck.some((row) => row.some((cell) => cell === 0))) {
+    if (boardToCheck.some((row) => row.some((tile) => tile.value === 0)))
       return false;
-    }
 
     // Возможные слияния?
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         // Проверка с правым соседом
-        if (c < COLS - 1 && boardToCheck[r][c] === boardToCheck[r][c + 1]) {
+        if (
+          c < COLS - 1 &&
+          boardToCheck[r][c].value === boardToCheck[r][c + 1].value
+        )
           return false;
-        }
+
         // Проверка с нижним соседом
-        if (r < ROWS - 1 && boardToCheck[r][c] === boardToCheck[r + 1][c]) {
+        if (
+          r < ROWS - 1 &&
+          boardToCheck[r][c].value === boardToCheck[r + 1][c].value
+        )
           return false;
-        }
       }
     }
 
@@ -97,29 +110,36 @@ export default function GameBoard() {
 
   // Обрабатывает одну линию (сдвиг и слияние влево)
   const processLine = useCallback(
-    (line: number[]): { line: number[]; points: number } => {
+    (line: Tile[]): { line: Tile[]; points: number } => {
       // Сдвиг влево
-      const numbersOnly = line.filter((value) => value !== 0);
-      const zeroes = Array(line.length - numbersOnly.length).fill(0);
+      const numbersOnly = line.filter((tile) => tile.value !== 0);
+      const zeroes = Array(line.length - numbersOnly.length).fill({
+        id: 0,
+        value: 0,
+      });
       const shiftedLine = numbersOnly.concat(zeroes);
 
       let gainedPoints = 0;
 
       // Слияние
       for (let i = 0; i < shiftedLine.length - 1; i++) {
-        if (shiftedLine[i] !== 0 && shiftedLine[i] === shiftedLine[i + 1]) {
-          const mergedValue = shiftedLine[i] * 2;
-          shiftedLine[i] = mergedValue;
+        if (
+          shiftedLine[i].value !== 0 &&
+          shiftedLine[i].value === shiftedLine[i + 1].value
+        ) {
+          const mergedValue = shiftedLine[i].value * 2;
+          shiftedLine[i] = { id: shiftedLine[i + 1].id, value: mergedValue };
           gainedPoints += mergedValue;
-          shiftedLine[i + 1] = 0;
+          shiftedLine[i + 1] = { id: 0, value: 0 };
         }
       }
 
       // Финальный сдвиг влево
-      const finalNumbers = shiftedLine.filter((value) => value !== 0);
-      const finalZeroes = Array(shiftedLine.length - finalNumbers.length).fill(
-        0,
-      );
+      const finalNumbers = shiftedLine.filter((tile) => tile.value !== 0);
+      const finalZeroes = Array(shiftedLine.length - finalNumbers.length).fill({
+        id: 0,
+        value: 0,
+      });
       const finalLine = finalNumbers.concat(finalZeroes);
 
       return { line: finalLine, points: gainedPoints };
@@ -129,7 +149,7 @@ export default function GameBoard() {
 
   // Транспонирует доску (меняет строки и столбцы местами)
   const transpose = useCallback(
-    (boardToTranspose: number[][]): number[][] => {
+    (boardToTranspose: Tile[][]): Tile[][] => {
       const transposed = createEmptyBoard();
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
@@ -143,23 +163,14 @@ export default function GameBoard() {
 
   // Универсальная функция, которая выполняет ход и обновляет состояние
   const operate = useCallback(
-    (newBoard: number[][], totalPoints: number) => {
-      const boardChanged = JSON.stringify(board) !== JSON.stringify(newBoard);
-
-      if (boardChanged) {
+    (newBoard: Tile[][], totalPoints: number) => {
+      if (JSON.stringify(board) !== JSON.stringify(newBoard)) {
         const finalBoard = addRandomTile(newBoard);
         setBoard(finalBoard);
-        setScore((prev) => prev + totalPoints);
-
-        if (checkGameOver(finalBoard)) {
-          setIsGameOver(true);
-          console.log('Игра окончена!');
-        }
+        if (totalPoints > 0) setScore((prev) => prev + totalPoints);
+        if (checkGameOver(finalBoard)) setIsGameOver(true);
       } else {
-        if (checkGameOver(newBoard)) {
-          setIsGameOver(true);
-          console.log('Игра окончена!');
-        }
+        if (checkGameOver(newBoard)) setIsGameOver(true);
       }
     },
     [board, addRandomTile, checkGameOver],
@@ -236,62 +247,72 @@ export default function GameBoard() {
     }
   }, [score, highScore]);
 
+  // Инициализация
   useEffect(() => {
     initializeGame();
   }, [initializeGame]);
 
   return (
     <div className='flex w-full max-w-md flex-col items-center gap-4'>
-      <div className='flex w-full items-center justify-between gap-4'>
-        <div className='rounded-md bg-neutral-200 p-3 text-center dark:bg-neutral-800'>
-          <p className='text-sm font-medium text-gray-500 dark:text-gray-400'>
-            СЧЕТ
-          </p>
-          <span className='text-2xl font-bold text-black dark:text-white'>
-            {score}
-          </span>
+      <div className='grid w-full grid-cols-3 gap-2'>
+        <div className='col-span-1 rounded-md bg-neutral-700 p-3 text-center'>
+          <p className='text-sm font-medium text-blue-200'>СЧЕТ</p>
+          <span className='text-2xl font-bold text-white'>{score}</span>
         </div>
-        <div className='rounded-md bg-neutral-200 p-3 text-center dark:bg-neutral-800'>
-          <p className='text-sm font-medium text-gray-500 dark:text-gray-400'>
-            ЛУЧШИЙ
-          </p>
-          <span className='text-2xl font-bold text-black dark:text-white'>
-            {highScore}
-          </span>
+        <div className='col-span-1 rounded-md bg-neutral-700 p-3 text-center'>
+          <p className='text-sm font-medium text-blue-200'>ЛУЧШИЙ</p>
+          <span className='text-2xl font-bold text-white'>{highScore}</span>
         </div>
         <button
           onClick={initializeGame}
-          className='focus:ring-opacity-75 rounded-md bg-orange-500 px-4 py-3 font-bold text-white shadow-md transition-colors hover:bg-orange-600 focus:ring-2 focus:ring-orange-400 focus:outline-none'>
+          className='focus:ring-opacity-75 col-span-1 rounded-md bg-sky-500 font-bold text-white shadow-md transition-colors hover:bg-sky-600 focus:ring-2 focus:ring-sky-400 focus:outline-none'>
           Новая игра
         </button>
       </div>
 
-      <div className='relative rounded-lg bg-slate-400 p-2 shadow-2xl dark:bg-slate-700'>
+      <div className='relative rounded-lg bg-slate-800 p-2 shadow-2xl'>
         {isGameOver && (
-          <div className='absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-black/50'>
+          <div className='absolute inset-0 z-20 flex flex-col items-center justify-center rounded-lg bg-black/70'>
             <p className='text-5xl font-bold text-white'>Игра окончена</p>
           </div>
         )}
-        <div
-          className='grid gap-1'
-          style={{
-            gridTemplateRows: `repeat(${ROWS}, 1fr)`,
-            gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-            width: 'clamp(280px, 90vw, 448px)',
-            height: 'clamp(280px, 90vw, 448px)',
-          }}>
-          {board.map((row, r) =>
-            row.map((value, c) => (
-              <div
-                key={`${r}-${c}`}
-                className={cn(
-                  'flex items-center justify-center rounded-md text-3xl font-bold transition-colors select-none sm:text-5xl',
-                  TILE_COLORS[value] || DEFAULT_TILE_COLOR,
-                )}>
-                {value !== 0 && value}
-              </div>
-            )),
-          )}
+
+        <div className='grid grid-cols-4 grid-rows-4 gap-2'>
+          {Array.from({ length: 16 }).map((_, index) => (
+            <div
+              key={index}
+              className={`aspect-square rounded-md ${EMPTY_TILE_COLOR}`}
+            />
+          ))}
+        </div>
+
+        <div className='absolute inset-2 grid grid-cols-4 grid-rows-4 gap-2'>
+          <AnimatePresence>
+            {board.map((row, r) =>
+              row.map((tile, c) =>
+                tile.value !== 0 ? (
+                  <motion.div
+                    key={tile.id}
+                    layoutId={tile.id.toString()}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className={`absolute flex items-center justify-center rounded-md text-3xl font-bold transition-colors select-none sm:text-5xl ${
+                      TILE_COLORS[tile.value] || 'bg-gray-500'
+                    }`}
+                    style={{
+                      gridRowStart: r + 1,
+                      gridColumnStart: c + 1,
+                      width: '100%',
+                      height: '100%',
+                    }}>
+                    {tile.value}
+                  </motion.div>
+                ) : null,
+              ),
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>
