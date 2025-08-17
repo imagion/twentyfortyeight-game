@@ -10,6 +10,7 @@ type Cell = {
 
 const ROWS = 4;
 const COLS = 4;
+const HIGH_SCORE_KEY = '2048-high-score'; // Ключ для localStorage
 
 // Карта цветов для плиток. Легко расширять.
 const TILE_COLORS: { [key: number]: string } = {
@@ -30,6 +31,7 @@ const DEFAULT_TILE_COLOR = 'bg-gray-200 dark:bg-gray-900';
 export default function GameBoard() {
   const [board, setBoard] = useState<number[][]>([]);
   const [score, setScore] = useState(0);
+  const [highScore, setHighScore] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
 
   // Создает пустую доску
@@ -217,6 +219,23 @@ export default function GameBoard() {
     return () => window.removeEventListener('keydown', handler);
   }, [move]);
 
+  // Работа с localStorage
+  useEffect(() => {
+    // Читаем рекорд при монтировании компонента
+    const savedHighScore = localStorage.getItem(HIGH_SCORE_KEY);
+    if (savedHighScore) {
+      setHighScore(parseInt(savedHighScore, 10));
+    }
+  }, []);
+
+  // Сохранение рекорда при изменении счета
+  useEffect(() => {
+    if (score > highScore) {
+      setHighScore(score);
+      localStorage.setItem(HIGH_SCORE_KEY, score.toString());
+    }
+  }, [score, highScore]);
+
   useEffect(() => {
     initializeGame();
   }, [initializeGame]);
@@ -230,6 +249,14 @@ export default function GameBoard() {
           </p>
           <span className='text-2xl font-bold text-black dark:text-white'>
             {score}
+          </span>
+        </div>
+        <div className='rounded-md bg-neutral-200 p-3 text-center dark:bg-neutral-800'>
+          <p className='text-sm font-medium text-gray-500 dark:text-gray-400'>
+            ЛУЧШИЙ
+          </p>
+          <span className='text-2xl font-bold text-black dark:text-white'>
+            {highScore}
           </span>
         </div>
         <button
