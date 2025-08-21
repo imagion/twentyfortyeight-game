@@ -1,17 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import {
+  createEmptyBoard,
+  placeRandomTile,
+  checkGameOver,
+  slideAndMergeLine,
+  transpose,
+  boardsEqual,
+} from '@/utils/gameLogic';
 import { cn } from '@/app/utils/cn';
+import { Board } from '@/types/globals';
 
-type Board = number[][];
-
-type CellPosition = {
-  row: number;
-  col: number;
-};
-
-const ROWS = 4;
-const COLS = 4;
 const HIGH_SCORE_KEY = '2048-high-score';
 
 const TILE_COLORS: Record<number, string | undefined> = {
@@ -35,31 +35,6 @@ export default function GameBoard() {
   const [highScore, setHighScore] = useState<number>(0);
   const [isGameOver, setIsGameOver] = useState(false);
 
-  const createEmptyBoard = useCallback((): Board => {
-    return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-  }, []);
-
-  const placeRandomTile = useCallback((boardState: Board): Board => {
-    const emptyCells: CellPosition[] = [];
-    boardState.forEach((row, r) => {
-      row.forEach((cellValue, c) => {
-        if (cellValue === 0) {
-          emptyCells.push({ row: r, col: c });
-        }
-      });
-    });
-
-    if (emptyCells.length === 0) return boardState;
-
-    const randomCell =
-      emptyCells[Math.floor(Math.random() * emptyCells.length)];
-    const newValue = Math.random() < 0.9 ? 2 : 4;
-
-    const newBoard = boardState.map((row) => [...row]);
-    newBoard[randomCell.row][randomCell.col] = newValue;
-    return newBoard;
-  }, []);
-
   const initializeGame = useCallback(() => {
     let startingBoard = createEmptyBoard();
     startingBoard = placeRandomTile(startingBoard);
@@ -67,75 +42,7 @@ export default function GameBoard() {
     setBoard(startingBoard);
     setScore(0);
     setIsGameOver(false);
-  }, [createEmptyBoard, placeRandomTile]);
-
-  const checkGameOver = useCallback((boardToCheck: Board): boolean => {
-    if (boardToCheck.some((row) => row.some((cell) => cell === 0))) {
-      return false;
-    }
-
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        if (c < COLS - 1 && boardToCheck[r][c] === boardToCheck[r][c + 1])
-          return false;
-        if (r < ROWS - 1 && boardToCheck[r][c] === boardToCheck[r + 1][c])
-          return false;
-      }
-    }
-
-    return true;
   }, []);
-
-  const slideAndMergeLine = useCallback(
-    (line: number[]): { line: number[]; points: number } => {
-      const numbersOnly = line.filter((value) => value !== 0);
-      const shiftedLine = numbersOnly.concat(
-        Array(line.length - numbersOnly.length).fill(0),
-      );
-      let gainedPoints = 0;
-
-      for (let i = 0; i < shiftedLine.length - 1; i++) {
-        if (shiftedLine[i] !== 0 && shiftedLine[i] === shiftedLine[i + 1]) {
-          const mergedValue = shiftedLine[i] * 2;
-          shiftedLine[i] = mergedValue;
-          gainedPoints += mergedValue;
-          shiftedLine[i + 1] = 0;
-        }
-      }
-
-      const finalNumbers = shiftedLine.filter((value) => value !== 0);
-      const finalLine = finalNumbers.concat(
-        Array(shiftedLine.length - finalNumbers.length).fill(0),
-      );
-
-      return { line: finalLine, points: gainedPoints };
-    },
-    [],
-  );
-
-  const transpose = useCallback(
-    (boardToTranspose: Board): Board => {
-      const transposed = createEmptyBoard();
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          transposed[c][r] = boardToTranspose[r][c];
-        }
-      }
-      return transposed;
-    },
-    [createEmptyBoard],
-  );
-
-  const boardsEqual = (a: Board, b: Board): boolean => {
-    if (a.length !== b.length) return false;
-    for (let r = 0; r < a.length; r++) {
-      if (a[r].length !== b[r].length) return false;
-      for (let c = 0; c < a[r].length; c++) {
-        if (a[r][c] !== b[r][c]) return false;
-      }
-    }
-    return true;
-  };
 
   const finalizeMove = useCallback(
     (newBoard: number[][], totalPoints: number) => {
@@ -150,7 +57,7 @@ export default function GameBoard() {
         setIsGameOver(true);
       }
     },
-    [board, placeRandomTile, checkGameOver],
+    [board],
   );
 
   const move = useCallback(
@@ -181,7 +88,7 @@ export default function GameBoard() {
 
       finalizeMove(newBoard, totalPoints);
     },
-    [board, isGameOver, finalizeMove, slideAndMergeLine, transpose],
+    [board, isGameOver, finalizeMove],
   );
 
   useEffect(() => {
