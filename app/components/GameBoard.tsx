@@ -1,20 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/app/utils/cn';
 
-type Tile = {
-  id: number;
-  value: number;
+type Board = number[][];
+
+type CellPosition = {
+  row: number;
+  col: number;
 };
 
 const ROWS = 4;
 const COLS = 4;
-const HIGH_SCORE_KEY = '2048-high-score'; // Ключ для localStorage
+const HIGH_SCORE_KEY = '2048-high-score';
 
-// Карта цветов для плиток. Легко расширять.
-const TILE_COLORS: { [key: number]: string } = {
+const TILE_COLORS: Record<number, string | undefined> = {
   2: 'bg-gray-100 text-gray-800',
   4: 'bg-amber-100 text-amber-900',
   8: 'bg-orange-300 text-white',
@@ -27,80 +27,58 @@ const TILE_COLORS: { [key: number]: string } = {
   1024: 'bg-purple-500 text-white',
   2048: 'bg-purple-700 text-white',
 };
-const EMPTY_TILE_COLOR = 'bg-gray-200 dark:bg-gray-900';
+const DEFAULT_TILE_COLOR = 'bg-gray-200 dark:bg-gray-900';
 
 export default function GameBoard() {
-  const [board, setBoard] = useState<Tile[][]>([]);
+  const [board, setBoard] = useState<Board>([]);
   const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(0);
+  const [highScore, setHighScore] = useState<number>(0);
   const [isGameOver, setIsGameOver] = useState(false);
-  const [tileIdCounter, setTileIdCounter] = useState(1);
 
-  // Создает пустую доску
-  const createEmptyBoard = useCallback((): Tile[][] => {
-    return Array.from({ length: ROWS }, () =>
-      Array(COLS).fill({ id: 0, value: 0 }),
-    );
+  const createEmptyBoard = useCallback((): Board => {
+    return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
   }, []);
 
-  // Добавляет одну фишку в случайную пустую ячейку
-  const addRandomTile = useCallback(
-    (boardToAddOn: Tile[][]): Tile[][] => {
-      const emptyCells: { row: number; col: number }[] = [];
-      boardToAddOn.forEach((row, r) =>
-        row.forEach((tile, c) => {
-          if (tile.value === 0) emptyCells.push({ row: r, col: c });
-        }),
-      );
+  const placeRandomTile = useCallback((boardState: Board): Board => {
+    const emptyCells: CellPosition[] = [];
+    boardState.forEach((row, r) => {
+      row.forEach((cellValue, c) => {
+        if (cellValue === 0) {
+          emptyCells.push({ row: r, col: c });
+        }
+      });
+    });
 
-      if (emptyCells.length === 0) return boardToAddOn;
+    if (emptyCells.length === 0) return boardState;
 
-      const randomCell =
-        emptyCells[Math.floor(Math.random() * emptyCells.length)];
-      const newValue = Math.random() < 0.9 ? 2 : 4;
-      const newBoard = boardToAddOn.map((row) => [...row]);
+    const randomCell =
+      emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    const newValue = Math.random() < 0.9 ? 2 : 4;
 
-      setTileIdCounter((prev) => prev + 1);
-      newBoard[randomCell.row][randomCell.col] = {
-        id: tileIdCounter,
-        value: newValue,
-      };
-      return newBoard;
-    },
-    [tileIdCounter],
-  );
+    const newBoard = boardState.map((row) => [...row]);
+    newBoard[randomCell.row][randomCell.col] = newValue;
+    return newBoard;
+  }, []);
 
-  // Инициализация или перезапуск игры
   const initializeGame = useCallback(() => {
     let startingBoard = createEmptyBoard();
-    startingBoard = addRandomTile(startingBoard);
-    startingBoard = addRandomTile(startingBoard);
+    startingBoard = placeRandomTile(startingBoard);
+    startingBoard = placeRandomTile(startingBoard);
     setBoard(startingBoard);
     setScore(0);
     setIsGameOver(false);
-  }, [createEmptyBoard, addRandomTile]);
+  }, [createEmptyBoard, placeRandomTile]);
 
-  // Проверяет, окончена ли игра
-  const checkGameOver = useCallback((boardToCheck: Tile[][]): boolean => {
-    // Есть ли пустые ячейки?
-    if (boardToCheck.some((row) => row.some((tile) => tile.value === 0)))
+  const checkGameOver = useCallback((boardToCheck: Board): boolean => {
+    if (boardToCheck.some((row) => row.some((cell) => cell === 0))) {
       return false;
+    }
 
-    // Возможные слияния?
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
-        // Проверка с правым соседом
-        if (
-          c < COLS - 1 &&
-          boardToCheck[r][c].value === boardToCheck[r][c + 1].value
-        )
+        if (c < COLS - 1 && boardToCheck[r][c] === boardToCheck[r][c + 1])
           return false;
-
-        // Проверка с нижним соседом
-        if (
-          r < ROWS - 1 &&
-          boardToCheck[r][c].value === boardToCheck[r + 1][c].value
-        )
+        if (r < ROWS - 1 && boardToCheck[r][c] === boardToCheck[r + 1][c])
           return false;
       }
     }
@@ -108,48 +86,35 @@ export default function GameBoard() {
     return true;
   }, []);
 
-  // Обрабатывает одну линию (сдвиг и слияние влево)
-  const processLine = useCallback(
-    (line: Tile[]): { line: Tile[]; points: number } => {
-      // Сдвиг влево
-      const numbersOnly = line.filter((tile) => tile.value !== 0);
-      const zeroes = Array(line.length - numbersOnly.length).fill({
-        id: 0,
-        value: 0,
-      });
-      const shiftedLine = numbersOnly.concat(zeroes);
-
+  const slideAndMergeLine = useCallback(
+    (line: number[]): { line: number[]; points: number } => {
+      const numbersOnly = line.filter((value) => value !== 0);
+      const shiftedLine = numbersOnly.concat(
+        Array(line.length - numbersOnly.length).fill(0),
+      );
       let gainedPoints = 0;
 
-      // Слияние
       for (let i = 0; i < shiftedLine.length - 1; i++) {
-        if (
-          shiftedLine[i].value !== 0 &&
-          shiftedLine[i].value === shiftedLine[i + 1].value
-        ) {
-          const mergedValue = shiftedLine[i].value * 2;
-          shiftedLine[i] = { id: shiftedLine[i + 1].id, value: mergedValue };
+        if (shiftedLine[i] !== 0 && shiftedLine[i] === shiftedLine[i + 1]) {
+          const mergedValue = shiftedLine[i] * 2;
+          shiftedLine[i] = mergedValue;
           gainedPoints += mergedValue;
-          shiftedLine[i + 1] = { id: 0, value: 0 };
+          shiftedLine[i + 1] = 0;
         }
       }
 
-      // Финальный сдвиг влево
-      const finalNumbers = shiftedLine.filter((tile) => tile.value !== 0);
-      const finalZeroes = Array(shiftedLine.length - finalNumbers.length).fill({
-        id: 0,
-        value: 0,
-      });
-      const finalLine = finalNumbers.concat(finalZeroes);
+      const finalNumbers = shiftedLine.filter((value) => value !== 0);
+      const finalLine = finalNumbers.concat(
+        Array(shiftedLine.length - finalNumbers.length).fill(0),
+      );
 
       return { line: finalLine, points: gainedPoints };
     },
     [],
   );
 
-  // Транспонирует доску (меняет строки и столбцы местами)
   const transpose = useCallback(
-    (boardToTranspose: Tile[][]): Tile[][] => {
+    (boardToTranspose: Board): Board => {
       const transposed = createEmptyBoard();
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
@@ -161,25 +126,37 @@ export default function GameBoard() {
     [createEmptyBoard],
   );
 
-  // Универсальная функция, которая выполняет ход и обновляет состояние
-  const operate = useCallback(
-    (newBoard: Tile[][], totalPoints: number) => {
-      if (JSON.stringify(board) !== JSON.stringify(newBoard)) {
-        const finalBoard = addRandomTile(newBoard);
-        setBoard(finalBoard);
+  const boardsEqual = (a: Board, b: Board): boolean => {
+    if (a.length !== b.length) return false;
+    for (let r = 0; r < a.length; r++) {
+      if (a[r].length !== b[r].length) return false;
+      for (let c = 0; c < a[r].length; c++) {
+        if (a[r][c] !== b[r][c]) return false;
+      }
+    }
+    return true;
+  };
+
+  const finalizeMove = useCallback(
+    (newBoard: number[][], totalPoints: number) => {
+      if (!boardsEqual(board, newBoard)) {
+        const boardWithNewTile = placeRandomTile(newBoard);
+        setBoard(boardWithNewTile);
         if (totalPoints > 0) setScore((prev) => prev + totalPoints);
-        if (checkGameOver(finalBoard)) setIsGameOver(true);
-      } else {
-        if (checkGameOver(newBoard)) setIsGameOver(true);
+
+        // TODO: Добавить проверку на победу (достижение плитки 2048) и показать сообщение.
+        if (checkGameOver(boardWithNewTile)) setIsGameOver(true);
+      } else if (checkGameOver(newBoard)) {
+        setIsGameOver(true);
       }
     },
-    [board, addRandomTile, checkGameOver],
+    [board, placeRandomTile, checkGameOver],
   );
 
-  // Движение
   const move = useCallback(
     (direction: 'left' | 'right' | 'up' | 'down') => {
       if (isGameOver) return;
+
       let totalPoints = 0;
       let boardToProcess = board.map((row) => [...row]);
 
@@ -188,29 +165,28 @@ export default function GameBoard() {
       }
 
       const newProcessedBoard = boardToProcess.map((row) => {
-        const rowToProcess =
-          direction === 'right' || direction === 'down'
-            ? [...row].reverse()
-            : row;
-        const result = processLine(rowToProcess);
+        const isReversed = direction === 'right' || direction === 'down';
+        const rowToProcess = isReversed ? [...row].reverse() : row;
+
+        const result = slideAndMergeLine(rowToProcess);
         totalPoints += result.points;
-        return direction === 'right' || direction === 'down'
-          ? result.line.reverse()
-          : result.line;
+
+        return isReversed ? result.line.reverse() : result.line;
       });
 
       const newBoard =
         direction === 'up' || direction === 'down'
           ? transpose(newProcessedBoard)
           : newProcessedBoard;
-      operate(newBoard, totalPoints);
+
+      finalizeMove(newBoard, totalPoints);
     },
-    [board, isGameOver, operate, processLine, transpose],
+    [board, isGameOver, finalizeMove, slideAndMergeLine, transpose],
   );
 
-  // Обработчик нажатий клавиш
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // TODO: Добавить поддержку свайпов на мобильных устройствах.
       switch (e.code) {
         case 'ArrowLeft':
           move('left');
@@ -227,19 +203,17 @@ export default function GameBoard() {
       }
     };
     window.addEventListener('keydown', handler);
+
     return () => window.removeEventListener('keydown', handler);
   }, [move]);
 
-  // Работа с localStorage
   useEffect(() => {
-    // Читаем рекорд при монтировании компонента
     const savedHighScore = localStorage.getItem(HIGH_SCORE_KEY);
     if (savedHighScore) {
       setHighScore(parseInt(savedHighScore, 10));
     }
   }, []);
 
-  // Сохранение рекорда при изменении счета
   useEffect(() => {
     if (score > highScore) {
       setHighScore(score);
@@ -247,7 +221,6 @@ export default function GameBoard() {
     }
   }, [score, highScore]);
 
-  // Инициализация
   useEffect(() => {
     initializeGame();
   }, [initializeGame]);
@@ -268,51 +241,34 @@ export default function GameBoard() {
           className='focus:ring-opacity-75 col-span-1 rounded-md bg-sky-500 font-bold text-white shadow-md transition-colors hover:bg-sky-600 focus:ring-2 focus:ring-sky-400 focus:outline-none'>
           Новая игра
         </button>
+        {/* TODO: Вернуть переключатель тем, когда логика будет полностью стабильна. */}
       </div>
 
-      <div className='relative rounded-lg bg-slate-800 p-2 shadow-2xl'>
+      <div className='relative rounded-lg bg-slate-400 p-2 shadow-2xl dark:bg-slate-700'>
         {isGameOver && (
-          <div className='absolute inset-0 z-20 flex flex-col items-center justify-center rounded-lg bg-black/70'>
+          <div className='absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-black/50'>
             <p className='text-5xl font-bold text-white'>Игра окончена</p>
           </div>
         )}
-
-        <div className='grid grid-cols-4 grid-rows-4 gap-2'>
-          {Array.from({ length: 16 }).map((_, index) => (
-            <div
-              key={index}
-              className={`aspect-square rounded-md ${EMPTY_TILE_COLOR}`}
-            />
-          ))}
-        </div>
-
-        <div className='absolute inset-2 grid grid-cols-4 grid-rows-4 gap-2'>
-          <AnimatePresence>
-            {board.map((row, r) =>
-              row.map((tile, c) =>
-                tile.value !== 0 ? (
-                  <motion.div
-                    key={tile.id}
-                    layoutId={tile.id.toString()}
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className={`absolute flex items-center justify-center rounded-md text-3xl font-bold transition-colors select-none sm:text-5xl ${
-                      TILE_COLORS[tile.value] || 'bg-gray-500'
-                    }`}
-                    style={{
-                      gridRowStart: r + 1,
-                      gridColumnStart: c + 1,
-                      width: '100%',
-                      height: '100%',
-                    }}>
-                    {tile.value}
-                  </motion.div>
-                ) : null,
-              ),
-            )}
-          </AnimatePresence>
+        <div
+          className='grid grid-cols-4 grid-rows-4 gap-1'
+          style={{
+            width: 'clamp(280px, 90vw, 448px)',
+            height: 'clamp(280px, 90vw, 448px)',
+          }}>
+          {board.map((row, r) =>
+            row.map((value, c) => (
+              <div
+                key={`${r}-${c}`}
+                className={cn(
+                  'flex items-center justify-center rounded-md text-3xl font-bold transition-colors select-none sm:text-5xl',
+                  TILE_COLORS[value] || DEFAULT_TILE_COLOR,
+                )}>
+                {/* // TODO: Анимация появления/слияния плиток. Потребует изменения структуры `board` на `Tile[][]`. */}
+                {value !== 0 && value}
+              </div>
+            )),
+          )}
         </div>
       </div>
     </div>
