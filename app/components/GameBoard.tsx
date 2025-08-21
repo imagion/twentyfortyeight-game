@@ -10,7 +10,7 @@ import {
   boardsEqual,
 } from '@/utils/gameLogic';
 import { cn } from '@/app/utils/cn';
-import { Board } from '@/types/globals';
+import { Board, Direction } from '@/types/globals';
 
 const HIGH_SCORE_KEY = '2048-high-score';
 
@@ -49,19 +49,27 @@ export default function GameBoard() {
       if (!boardsEqual(board, newBoard)) {
         const boardWithNewTile = placeRandomTile(newBoard);
         setBoard(boardWithNewTile);
-        if (totalPoints > 0) setScore((prev) => prev + totalPoints);
 
+        if (totalPoints > 0) {
+          setScore((prev) => {
+            const next = prev + totalPoints;
+            if (next > highScore) {
+              setHighScore(next);
+              localStorage.setItem(HIGH_SCORE_KEY, String(next));
+            }
+            return next;
+          });
+        }
         // TODO: Добавить проверку на победу (достижение плитки 2048) и показать сообщение.
+
         if (checkGameOver(boardWithNewTile)) setIsGameOver(true);
-      } else if (checkGameOver(newBoard)) {
-        setIsGameOver(true);
       }
     },
-    [board],
+    [board, highScore],
   );
 
   const move = useCallback(
-    (direction: 'left' | 'right' | 'up' | 'down') => {
+    (direction: Direction) => {
       if (isGameOver) return;
 
       let totalPoints = 0;
@@ -115,18 +123,9 @@ export default function GameBoard() {
   }, [move]);
 
   useEffect(() => {
-    const savedHighScore = localStorage.getItem(HIGH_SCORE_KEY);
-    if (savedHighScore) {
-      setHighScore(parseInt(savedHighScore, 10));
-    }
+    const saved = localStorage.getItem(HIGH_SCORE_KEY);
+    if (saved) setHighScore(parseInt(saved, 10));
   }, []);
-
-  useEffect(() => {
-    if (score > highScore) {
-      setHighScore(score);
-      localStorage.setItem(HIGH_SCORE_KEY, score.toString());
-    }
-  }, [score, highScore]);
 
   useEffect(() => {
     initializeGame();
