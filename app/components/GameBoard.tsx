@@ -11,43 +11,45 @@ import {
 } from '@/utils/gameLogic';
 import { cn } from '@/app/utils/cn';
 import { Board, Direction } from '@/types/globals';
+import { motion, AnimatePresence } from 'motion/react';
+import GameHeader from '@/components/GameHeader';
 
 const HIGH_SCORE_KEY = '2048-high-score';
 
+// prettier-ignore
 const TILE_COLORS: Record<number, string | undefined> = {
-  2: 'bg-gray-100 text-gray-800',
-  4: 'bg-amber-100 text-amber-900',
-  8: 'bg-orange-300 text-white',
-  16: 'bg-orange-400 text-white',
-  32: 'bg-red-400 text-white',
-  64: 'bg-red-500 text-white',
-  128: 'bg-yellow-400 text-white',
-  256: 'bg-yellow-500 text-white',
-  512: 'bg-yellow-600 text-white',
-  1024: 'bg-purple-500 text-white',
-  2048: 'bg-purple-700 text-white',
+  2: 'bg-gray-100 text-gray-800',  4: 'bg-amber-100 text-amber-900',
+  8: 'bg-orange-300 text-white',   16: 'bg-orange-400 text-white',
+  32: 'bg-red-400 text-white',     64: 'bg-red-500 text-white',
+  128: 'bg-yellow-400 text-white', 256: 'bg-yellow-500 text-white',
+  512: 'bg-yellow-600 text-white', 1024: 'bg-purple-500 text-white',
+  2048: 'bg-purple-700 text-white', 
 };
 const DEFAULT_TILE_COLOR = 'bg-gray-200 dark:bg-gray-900';
 
 export default function GameBoard() {
   const [board, setBoard] = useState<Board>([]);
-  const [score, setScore] = useState(0);
+  const [score, setScore] = useState<number>(0);
   const [highScore, setHighScore] = useState<number>(0);
-  const [isGameOver, setIsGameOver] = useState(false);
+  const [isGameOver, setIsGameOver] = useState<boolean>(false);
+  const [tileIdCounter, setTileIdCounter] = useState<number>(1);
 
   const initializeGame = useCallback(() => {
+    let currentId = 1;
     let startingBoard = createEmptyBoard();
-    startingBoard = placeRandomTile(startingBoard);
-    startingBoard = placeRandomTile(startingBoard);
+    startingBoard = placeRandomTile(startingBoard, currentId++);
+    startingBoard = placeRandomTile(startingBoard, currentId++);
+    setTileIdCounter(currentId);
     setBoard(startingBoard);
     setScore(0);
     setIsGameOver(false);
   }, []);
 
   const finalizeMove = useCallback(
-    (newBoard: number[][], totalPoints: number) => {
+    (newBoard: Board, totalPoints: number) => {
       if (!boardsEqual(board, newBoard)) {
-        const boardWithNewTile = placeRandomTile(newBoard);
+        const boardWithNewTile = placeRandomTile(newBoard, tileIdCounter);
+        setTileIdCounter((prev) => prev + 1);
         setBoard(boardWithNewTile);
 
         if (totalPoints > 0) {
@@ -65,7 +67,7 @@ export default function GameBoard() {
         if (checkGameOver(boardWithNewTile)) setIsGameOver(true);
       }
     },
-    [board, highScore],
+    [board, highScore, tileIdCounter],
   );
 
   const move = useCallback(
@@ -75,25 +77,20 @@ export default function GameBoard() {
       let totalPoints = 0;
       let boardToProcess = board.map((row) => [...row]);
 
-      if (direction === 'up' || direction === 'down') {
-        boardToProcess = transpose(boardToProcess);
-      }
+      const isVertical = direction === 'up' || direction === 'down';
+      if (isVertical) boardToProcess = transpose(boardToProcess);
 
       const newProcessedBoard = boardToProcess.map((row) => {
         const isReversed = direction === 'right' || direction === 'down';
         const rowToProcess = isReversed ? [...row].reverse() : row;
-
         const result = slideAndMergeLine(rowToProcess);
         totalPoints += result.points;
-
         return isReversed ? result.line.reverse() : result.line;
       });
 
-      const newBoard =
-        direction === 'up' || direction === 'down'
-          ? transpose(newProcessedBoard)
-          : newProcessedBoard;
-
+      const newBoard = isVertical
+        ? transpose(newProcessedBoard)
+        : newProcessedBoard;
       finalizeMove(newBoard, totalPoints);
     },
     [board, isGameOver, finalizeMove],
@@ -131,50 +128,72 @@ export default function GameBoard() {
     initializeGame();
   }, [initializeGame]);
 
+  // Расплющиваем доску в одномерный массив для удобства рендеринга с AnimatePresence.
+  const flatTiles = board.flat().filter((tile) => tile.value !== 0);
+
   return (
     <div className='flex w-full max-w-md flex-col items-center gap-4'>
-      <div className='grid w-full grid-cols-3 gap-2'>
-        <div className='col-span-1 rounded-md bg-neutral-700 p-3 text-center'>
-          <p className='text-sm font-medium text-blue-200'>СЧЕТ</p>
-          <span className='text-2xl font-bold text-white'>{score}</span>
-        </div>
-        <div className='col-span-1 rounded-md bg-neutral-700 p-3 text-center'>
-          <p className='text-sm font-medium text-blue-200'>ЛУЧШИЙ</p>
-          <span className='text-2xl font-bold text-white'>{highScore}</span>
-        </div>
-        <button
-          onClick={initializeGame}
-          className='focus:ring-opacity-75 col-span-1 rounded-md bg-sky-500 font-bold text-white shadow-md transition-colors hover:bg-sky-600 focus:ring-2 focus:ring-sky-400 focus:outline-none'>
-          Новая игра
-        </button>
-        {/* TODO: Вернуть переключатель тем, когда логика будет полностью стабильна. */}
-      </div>
+      <GameHeader
+        score={score}
+        highScore={highScore}
+        onNewGame={initializeGame}
+      />
 
-      <div className='relative rounded-lg bg-slate-400 p-2 shadow-2xl dark:bg-slate-700'>
+      {/* Контейнер для доски*/}
+      <div
+        className='relative rounded-lg bg-slate-400 p-2 shadow-2xl dark:bg-slate-700'
+        style={{
+          width: 'clamp(280px, 90vw, 448px)',
+          height: 'clamp(280px, 90vw, 448px)',
+        }}>
         {isGameOver && (
-          <div className='absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-black/50'>
+          <div className='absolute inset-0 z-20 flex flex-col items-center justify-center rounded-lg bg-black/70'>
             <p className='text-5xl font-bold text-white'>Игра окончена</p>
           </div>
         )}
-        <div
-          className='grid grid-cols-4 grid-rows-4 gap-1'
-          style={{
-            width: 'clamp(280px, 90vw, 448px)',
-            height: 'clamp(280px, 90vw, 448px)',
-          }}>
-          {board.map((row, r) =>
-            row.map((value, c) => (
-              <div
-                key={`${r}-${c}`}
-                className={cn(
-                  'flex items-center justify-center rounded-md text-3xl font-bold transition-colors select-none sm:text-5xl',
-                  TILE_COLORS[value] || DEFAULT_TILE_COLOR,
-                )}>
-                {/* // TODO: Анимация появления/слияния плиток. Потребует изменения структуры `board` на `Tile[][]`. */}
-                {value !== 0 && value}
-              </div>
-            )),
-          )}
+        {/* Фоновый слой */}
+        <div className='grid h-full w-full grid-cols-4 grid-rows-4 gap-2'>
+          {Array.from({ length: 16 }).map((_, index) => (
+            <div key={index} className='rounded-md bg-gray-200/50' />
+          ))}
+        </div>
+        {/* Анимационный слой */}
+        <div className='absolute inset-2 grid grid-cols-4 grid-rows-4 gap-2'>
+          <AnimatePresence>
+            {flatTiles.map((tile) => {
+              let r = -1,
+                c = -1;
+              for (let i = 0; i < 4; i++) {
+                // Добавляем проверку board[i], чтобы избежать ошибок при первом рендере, когда board пуст.
+                const colIndex = board[i]?.findIndex((t) => t.id === tile.id);
+                if (colIndex !== -1) {
+                  r = i;
+                  c = colIndex;
+                  break;
+                }
+              }
+
+              return (
+                <motion.div
+                  key={tile.id}
+                  layoutId={tile.id.toString()}
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  className={cn(
+                    'flex items-center justify-center rounded-md text-3xl font-bold select-none sm:text-5xl',
+                    TILE_COLORS[tile.value] || DEFAULT_TILE_COLOR,
+                  )}
+                  style={{
+                    gridRowStart: r + 1,
+                    gridColumnStart: c + 1,
+                  }}>
+                  {tile.value}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
       </div>
     </div>
