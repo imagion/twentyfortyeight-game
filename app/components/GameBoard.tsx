@@ -33,6 +33,10 @@ export default function GameBoard() {
   const [highScore, setHighScore] = useState<number>(0);
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const [tileIdCounter, setTileIdCounter] = useState<number>(1);
+  const [touchStartPos, setTouchStartPos] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const initializeGame = useCallback(() => {
     let currentId = 1;
@@ -96,6 +100,60 @@ export default function GameBoard() {
     [board, isGameOver, finalizeMove],
   );
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const firstTouch = e.touches[0];
+    setTouchStartPos({ x: firstTouch.clientX, y: firstTouch.clientY });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPos) return;
+    // Предотвращаем скролл страницы во время свайпа по доске.
+    e.preventDefault();
+  };
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (!touchStartPos) return;
+
+      const endTouch = e.changedTouches[0];
+      const deltaX = endTouch.clientX - touchStartPos.x;
+      const deltaY = endTouch.clientY - touchStartPos.y;
+
+      // Устанавливаем минимальную дистанцию свайпа, чтобы отсечь случайные касания
+      const minSwipeDistance = 50;
+
+      // Проверяем, был ли свайп длиннее минимального
+      if (
+        Math.abs(deltaX) < minSwipeDistance &&
+        Math.abs(deltaY) < minSwipeDistance
+      ) {
+        setTouchStartPos(null); // Сбрасываем начальную позицию
+        return;
+      }
+
+      // Определяем, был ли свайп больше горизонтальным или вертикальным
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        // Горизонтальный свайп
+        if (deltaX > 0) {
+          move('right');
+        } else {
+          move('left');
+        }
+      } else {
+        // Вертикальный свайп
+        if (deltaY > 0) {
+          move('down');
+        } else {
+          move('up');
+        }
+      }
+
+      // Сбрасываем начальную позицию для следующего свайпа
+      setTouchStartPos(null);
+    },
+    [move, touchStartPos],
+  );
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // TODO: Добавить поддержку свайпов на мобильных устройствах.
@@ -142,6 +200,9 @@ export default function GameBoard() {
       {/* Контейнер для доски*/}
       <div
         className='relative rounded-lg bg-slate-400 p-2 shadow-2xl dark:bg-slate-700'
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         style={{
           width: 'clamp(280px, 90vw, 448px)',
           height: 'clamp(280px, 90vw, 448px)',
@@ -172,7 +233,7 @@ export default function GameBoard() {
                   break;
                 }
               }
-
+              // Анимированный тайл
               return (
                 <motion.div
                   key={tile.id}
