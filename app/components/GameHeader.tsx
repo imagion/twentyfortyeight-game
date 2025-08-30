@@ -26,7 +26,6 @@ export default function GameHeader({
         className='focus:ring-opacity-75 col-span-1 rounded-md bg-sky-500 font-bold text-white shadow-md transition-colors hover:bg-sky-600 focus:ring-2 focus:ring-sky-400 focus:outline-none'>
         Новая игра
       </button>
-      {/* TODO: Вернуть переключатель тем, когда логика будет полностью стабильна. */}
     </div>
   );
 }

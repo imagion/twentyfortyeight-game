@@ -31,12 +31,14 @@ export default function GameBoard() {
   const [board, setBoard] = useState<Board>([]);
   const [score, setScore] = useState<number>(0);
   const [highScore, setHighScore] = useState<number>(0);
-  const [isGameOver, setIsGameOver] = useState<boolean>(false);
   const [tileIdCounter, setTileIdCounter] = useState<number>(1);
   const [touchStartPos, setTouchStartPos] = useState<{
     x: number;
     y: number;
   } | null>(null);
+  const [isGameOver, setIsGameOver] = useState<boolean>(false);
+  const [hasWon, setHasWon] = useState<boolean>(false);
+  const [showVictoryModal, setShowVictoryModal] = useState<boolean>(false);
 
   const initializeGame = useCallback(() => {
     let currentId = 1;
@@ -47,6 +49,8 @@ export default function GameBoard() {
     setBoard(startingBoard);
     setScore(0);
     setIsGameOver(false);
+    setHasWon(false);
+    setShowVictoryModal(false);
   }, []);
 
   const finalizeMove = useCallback(
@@ -55,6 +59,14 @@ export default function GameBoard() {
         const boardWithNewTile = placeRandomTile(newBoard, tileIdCounter);
         setTileIdCounter((prev) => prev + 1);
         setBoard(boardWithNewTile);
+
+        if (
+          !hasWon &&
+          boardWithNewTile.flat().some((tile) => tile.value === 2048)
+        ) {
+          setHasWon(true);
+          setShowVictoryModal(true);
+        }
 
         if (totalPoints > 0) {
           setScore((prev) => {
@@ -66,12 +78,11 @@ export default function GameBoard() {
             return next;
           });
         }
-        // TODO: Добавить проверку на победу (достижение плитки 2048) и показать сообщение.
 
         if (checkGameOver(boardWithNewTile)) setIsGameOver(true);
       }
     },
-    [board, highScore, tileIdCounter],
+    [board, hasWon, highScore, tileIdCounter],
   );
 
   const move = useCallback(
@@ -122,25 +133,22 @@ export default function GameBoard() {
       // Устанавливаем минимальную дистанцию свайпа, чтобы отсечь случайные касания
       const minSwipeDistance = 50;
 
-      // Проверяем, был ли свайп длиннее минимального
       if (
         Math.abs(deltaX) < minSwipeDistance &&
         Math.abs(deltaY) < minSwipeDistance
       ) {
-        setTouchStartPos(null); // Сбрасываем начальную позицию
+        setTouchStartPos(null);
         return;
       }
 
       // Определяем, был ли свайп больше горизонтальным или вертикальным
       if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        // Горизонтальный свайп
         if (deltaX > 0) {
           move('right');
         } else {
           move('left');
         }
       } else {
-        // Вертикальный свайп
         if (deltaY > 0) {
           move('down');
         } else {
@@ -148,7 +156,6 @@ export default function GameBoard() {
         }
       }
 
-      // Сбрасываем начальную позицию для следующего свайпа
       setTouchStartPos(null);
     },
     [move, touchStartPos],
@@ -156,7 +163,6 @@ export default function GameBoard() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // TODO: Добавить поддержку свайпов на мобильных устройствах.
       switch (e.code) {
         case 'ArrowLeft':
           move('left');
@@ -207,11 +213,32 @@ export default function GameBoard() {
           width: 'clamp(280px, 90vw, 448px)',
           height: 'clamp(280px, 90vw, 448px)',
         }}>
-        {isGameOver && (
-          <div className='absolute inset-0 z-20 flex flex-col items-center justify-center rounded-lg bg-black/70'>
-            <p className='text-5xl font-bold text-white'>Игра окончена</p>
-          </div>
-        )}
+        {/* Конец игры */}
+        <AnimatePresence>
+          {isGameOver && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className='absolute inset-0 z-20 flex flex-col items-center justify-center rounded-lg bg-black/70'>
+              <p className='text-5xl font-bold text-white'>Игра окончена</p>
+            </motion.div>
+          )}
+          {showVictoryModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className='absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-lg bg-black/70'>
+              <p className='text-5xl font-bold text-yellow-400'>Победа!</p>
+              <button
+                onClick={() => setShowVictoryModal(false)}
+                className='rounded-md bg-sky-500 px-6 py-2 font-bold text-white transition-colors hover:bg-sky-600'>
+                Продолжить
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Фоновый слой */}
         <div className='grid h-full w-full grid-cols-4 grid-rows-4 gap-2'>
           {Array.from({ length: 16 }).map((_, index) => (
